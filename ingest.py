@@ -1,8 +1,10 @@
 import os
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 import fitz  # PyMuPDF
 import chromadb
 from sentence_transformers import SentenceTransformer
 import hashlib
+from utils import get_device
 
 # Configuration
 DATA_DIR = "data"
@@ -14,14 +16,28 @@ EMBEDDING_MODEL_NAME = "BAAI/bge-small-en-v1.5"
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(IMAGES_DIR, exist_ok=True)
 
-# Initialize embedding model and ChromaDB client
-print("Loading embedding model...")
-embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
-chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
+# Lazy loading variables
+_embedding_model = None
+_collection = None
 
-# We'll use a single collection for simplicity
-collection_name = "rag_collection"
-collection = chroma_client.get_or_create_collection(name=collection_name)
+def get_embedding_model():
+    global _embedding_model
+    if _embedding_model is None:
+        print("Loading embedding model...")
+        device = get_device()
+        _embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME, device=device)
+    return _embedding_model
+
+def get_collection():
+    global _collection
+    if _collection is None:
+        try:
+            chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
+            _collection = chroma_client.get_or_create_collection(name="rag_collection")
+        except Exception as e:
+            print(f"Error initializing ChromaDB: {e}")
+            raise
+    return _collection
 
 def get_file_hash(filepath):
     hasher = hashlib.md5()
@@ -35,7 +51,12 @@ def extract_text_and_images(pdf_path):
     doc_images_dir = os.path.join(IMAGES_DIR, doc_hash)
     os.makedirs(doc_images_dir, exist_ok=True)
     
-    doc = fitz.open(pdf_path)
+    try:
+        doc = fitz.open(pdf_path)
+    except Exception as e:
+        print(f"Error opening PDF: {e}")
+        return [], doc_hash
+        
     pages_data = []
     
     for page_num in range(len(doc)):
@@ -112,9 +133,11 @@ def ingest_pdf(pdf_path):
             
     if documents:
         print(f"Generating embeddings for {len(documents)} chunks...")
-        embeddings = embedding_model.encode(documents).tolist()
+        model = get_embedding_model()
+        embeddings = model.encode(documents).tolist()
         
         print("Storing in ChromaDB...")
+        collection = get_collection()
         collection.upsert(
             documents=documents,
             embeddings=embeddings,

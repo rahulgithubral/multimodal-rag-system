@@ -1,5 +1,17 @@
 import streamlit as st
+import sys
+
+# Ensure supported Python version
+if sys.version_info[:2] not in [(3, 10), (3, 11)]:
+    st.set_page_config(page_title="Error", layout="centered")
+    st.error(f"Unsupported Python Version: {sys.version_info[0]}.{sys.version_info[1]}")
+    st.markdown("This application specifically requires **Python 3.10** or **Python 3.11** due to strictly compiled dependency wheels for PyMuPDF and PyTorch. Please recreate your virtual environment using a supported version.")
+    st.stop()
+
 import os
+# Must be set BEFORE any torch-related imports occur
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+
 from ingest import ingest_pdf
 from retrieve import retrieve
 from generate import generate_answer
@@ -58,6 +70,10 @@ st.markdown("Interact with your documents using advanced Vision-Language capabil
 # Initialize session state for chat history
 if "messages" not in st.session_state:
     st.session_state.messages = []
+
+# Ensure essential directories exist
+os.makedirs("data/uploads", exist_ok=True)
+os.makedirs("data/images", exist_ok=True)
 
 # --- Sidebar ---
 with st.sidebar:
@@ -121,7 +137,7 @@ for message in st.session_state.messages:
                 cols = st.columns(num_cols)
                 for i, img_obj in enumerate(valid_images):
                     with cols[i % num_cols]:
-                        st.image(img_obj, caption="Retrieved Image", use_container_width=True)
+                        st.image(img_obj, caption="Retrieved Image", use_column_width=True)
 
 if prompt := st.chat_input("Ask a question about your documents..."):
     # Display user message
@@ -165,7 +181,7 @@ if prompt := st.chat_input("Ask a question about your documents..."):
                         cols = st.columns(num_cols)
                         for i, img_obj in enumerate(valid_images):
                             with cols[i % num_cols]:
-                                st.image(img_obj, caption="Retrieved Image", use_container_width=True)
+                                st.image(img_obj, caption="Retrieved Image", use_column_width=True)
                             
                 st.session_state.messages.append({
                     "role": "assistant", 

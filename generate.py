@@ -1,8 +1,10 @@
+import os
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from PIL import Image
 from pathlib import Path
-from utils import get_white_bg_image
+from utils import get_white_bg_image, get_device
 
 # --- Hotfix for HfMoondream all_tied_weights_keys bug ---
 _orig_getattr = torch.nn.Module.__getattr__
@@ -24,7 +26,7 @@ def load_model():
     global _model, _tokenizer
     if _model is None:
         print("Loading Moondream2 model...")
-        device = "mps" if torch.backends.mps.is_available() else "cpu"
+        device = get_device()
         print(f"Using device: {device}")
         
         # Load Moondream 2

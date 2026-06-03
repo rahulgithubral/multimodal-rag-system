@@ -1,13 +1,13 @@
-# Multimodal RAG System (Apple Silicon Optimized)
+# Multimodal RAG System
 
-A complete local multimodal RAG system built for Apple Silicon (MacBook Air M4, 16GB RAM) using Moondream 2, ChromaDB, and Streamlit.
+A complete local multimodal Retrieval-Augmented Generation (RAG) system built for cross-platform execution (macOS Apple Silicon, Linux/Windows NVIDIA CUDA, and CPU) using Moondream 2, ChromaDB, and Streamlit.
 
 ## Features
-- **Local Execution:** Everything runs locally on your Mac.
-- **Apple Silicon Optimized:** Uses MPS (Metal Performance Shaders) and `torch.float16` for accelerated, memory-efficient inference.
+- **Local Execution:** Everything runs locally on your machine for complete privacy.
+- **Cross-Platform Optimized:** Dynamically detects and utilizes Apple MPS (Metal Performance Shaders), NVIDIA CUDA, or gracefully falls back to CPU.
 - **Multimodal RAG:** Extracts both text and images from PDFs. Images are retrieved alongside relevant text chunks and passed to the Vision-Language Model.
 - **Embeddings:** Uses `BAAI/bge-small-en-v1.5` for fast, high-quality text embeddings.
-- **Citations:** Model generates answers with page number citations, and the UI displays the retrieved images from those pages.
+- **Citations:** Generates answers with accurate page number citations, and the UI displays the retrieved images from those pages.
 
 ## Project Structure
 ```
@@ -16,20 +16,38 @@ rag-assignment/
 ├── ingest.py             # PDF ingestion, extraction, chunking, and embedding
 ├── retrieve.py           # Logic to retrieve top-k chunks and associated images
 ├── generate.py           # Moondream 2 integration and prompt construction
-├── requirements.txt      # Python dependencies
+├── utils.py              # Cross-platform device selection and image utilities
+├── requirements.txt      # Strictly pinned Python dependencies
+├── Dockerfile            # Container definition
+├── docker-compose.yml    # Docker orchestration
 ├── data/                 # Auto-generated directory for uploaded PDFs and extracted images
 └── chroma_db/            # Auto-generated directory for ChromaDB storage
 ```
 
+## Requirements & Compatibility
+
+**Supported Python Versions:**
+- `Python 3.10`
+- `Python 3.11`
+
+**Unsupported Python Versions:**
+- `Python 3.12+` (Including Python 3.14)
+- `Python 3.9 and below`
+
+**Why this matters:**
+This system heavily relies on `PyMuPDF` (for robust PDF extraction) and `PyTorch` (for local machine learning inference). These core libraries do not immediately release pre-compiled binary "wheels" for bleeding-edge Python versions (like 3.14). If you attempt to install the dependencies on an unsupported version, `pip` will attempt to build the C/C++ source code from scratch, which will almost certainly fail due to compiler incompatibilities. **To ensure a perfect, reviewer-proof installation, you must use Python 3.10 or 3.11.**
+
 ## Setup Instructions
 
-1. **Create a virtual environment (recommended):**
+### Option A: Local Setup (Recommended for Development)
+
+1. **Create a virtual environment (Must use Python 3.10 or 3.11):**
    ```bash
-   python3 -m venv venv
-   source venv/bin/activate
+   python3.11 -m venv venv
+   source venv/bin/activate  # On Windows use: venv\Scripts\activate
    ```
 
-2. **Install dependencies:**
+2. **Install pinned dependencies:**
    ```bash
    pip install -r requirements.txt
    ```
@@ -39,14 +57,20 @@ rag-assignment/
    streamlit run app.py
    ```
 
-## Note on Memory Usage (16GB RAM)
-- The system is configured to use Moondream 2, which is significantly smaller (~2B parameters) than the previous Qwen2.5-VL-7B model, making it perfect for 16GB Apple Silicon machines.
-- It leverages `torch.float16` and the `mps` device backend for smooth execution.
-- The first time you run a query, it will automatically download the Moondream weights from Hugging Face.
+### Option B: Docker Setup (Production/Reproducible)
 
-## How it Works
-1. **Upload:** Upload a PDF via the Streamlit sidebar.
-2. **Ingest:** The system extracts text and images page-by-page. Text is chunked (with overlap), embedded, and stored in ChromaDB. Extracted images are saved locally and associated with their page numbers.
-3. **Query:** Ask a question. The system embeds the query and retrieves the top-K text chunks.
-4. **Retrieve Images:** It also fetches any images that were extracted from the pages corresponding to those retrieved text chunks.
-5. **Generate:** The query, text chunks, and images (merged into a collage if there are multiple) are sent to Moondream 2 to generate a grounded response.
+Ensure Docker and Docker Compose are installed.
+
+1. **Build and start the container:**
+   ```bash
+   docker-compose up --build
+   ```
+2. **Access the UI:**
+   Open your browser and navigate to `http://localhost:8501`.
+
+## Troubleshooting & Crash Prevention
+
+- **Dependency Issues:** We strictly pin `transformers==4.44.2` to avoid weight-tying bugs present in newer HuggingFace releases that break Moondream.
+- **Corrupt PDFs / Black Images:** The system includes defensive PyMuPDF parsing and background flattening to automatically reject corrupted or alpha-channel images that would normally crash the UI.
+- **Slow Startup:** ChromaDB and the Embedding models are lazy-loaded. The first query or document upload will trigger the download of model weights.
+- **Hardware Acceleration:** Verify `torch.cuda.is_available()` or `torch.backends.mps.is_available()` returns `True` if you expect GPU speeds. Otherwise, the system safely falls back to the CPU.

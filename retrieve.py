@@ -1,6 +1,8 @@
 import os
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 import chromadb
 from sentence_transformers import SentenceTransformer
+from utils import get_device
 
 CHROMA_PATH = "chroma_db"
 IMAGES_DIR = "data/images"
@@ -13,14 +15,23 @@ _collection = None
 def get_embedding_model():
     global _embedding_model
     if _embedding_model is None:
-        _embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
+        try:
+            device = get_device()
+            _embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME, device=device)
+        except Exception as e:
+            print(f"Error loading embedding model: {e}")
+            raise
     return _embedding_model
 
 def get_collection():
     global _collection
     if _collection is None:
-        chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
-        _collection = chroma_client.get_or_create_collection(name="rag_collection")
+        try:
+            chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
+            _collection = chroma_client.get_or_create_collection(name="rag_collection")
+        except Exception as e:
+            print(f"Error initializing ChromaDB: {e}")
+            raise
     return _collection
 
 def retrieve(query, top_k=3):

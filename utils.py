@@ -1,6 +1,9 @@
 import os
 import chromadb
 from PIL import Image
+import torch
+
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
 CHROMA_PATH = "chroma_db"
 IMAGES_DIR = "data/images"
@@ -76,3 +79,11 @@ def get_white_bg_image(img_path):
         return img
     except Exception:
         return None
+
+def get_device():
+    """Detects the optimal hardware device for PyTorch/Transformers."""
+    if torch.cuda.is_available():
+        return "cuda"
+    elif torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
